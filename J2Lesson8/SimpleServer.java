@@ -5,10 +5,13 @@
  * @author Sergey Iryupin
  * @version 0.3.3 dated Jun 29, 2018
  */
+import jdk.internal.org.objectweb.asm.tree.TryCatchBlockNode;
+
 import java.io.*;
 import java.net.*;
 import java.sql.*;
 import java.util.*;
+import java.util.concurrent.TimeoutException;
 
 class SimpleServer implements IConstants {
     List<ClientHandler> clients; // list of clients
@@ -147,6 +150,8 @@ class SimpleServer implements IConstants {
         public void run() {
             String message;
             try {
+                // set socket time out 120 000 milisekond
+                socket.setSoTimeout(120000);
                 do {
                     message = reader.readLine();
                     if (message != null) {
@@ -157,6 +162,8 @@ class SimpleServer implements IConstants {
                                 name = wds[1];
                                 sendMsg("Hello, " + name);
                                 sendMsg("\0");
+                                // set socket time out infiniti if outh is good
+                                socket.setSoTimeout(0);
                             } else {
                                 System.out.println(name + ": " + AUTH_FAIL);
                                 sendMsg(AUTH_FAIL);
@@ -173,7 +180,18 @@ class SimpleServer implements IConstants {
                 }
                 socket.close();
                 System.out.println(name + CLIENT_DISCONNECTED);
-            } catch (Exception ex) {
+            }
+            catch (SocketTimeoutException exT) {
+                //при возникновении ошибки тайм аутра закрываем сокет
+                synchronized (clients) {
+                    clients.remove(this); // delete client from list
+                }
+                try { socket.close();}
+                catch (IOException ss) {System.out.println(ss.getMessage());}
+
+                System.out.println(name + CLIENT_DISCONNECTED+" "+exT.getMessage());
+            }
+            catch (Exception ex) {
                 System.out.println(ex.getMessage());
             }
         }
